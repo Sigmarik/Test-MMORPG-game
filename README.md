@@ -1,2 +1,2 @@
-# Test-MMORPG-game
+# Test-multiplayer-game
 Попытка сделать хорошую (относительно) муьтиплеерную игру с открытым миром на Python + PyGame.
