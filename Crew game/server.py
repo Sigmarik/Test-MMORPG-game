@@ -32,32 +32,41 @@ WHEEL = imload('assets/wheel.bmp')
 BODY = imload('assets/body.bmp')
 SIGHT = imload('assets/sight.bmp')
 WALL = imload('assets/1.bmp')
+RESOURCE = imload('assets/2.bmp')
 SPACE = pygame.image.load('assets/-1.bmp')
 TIRE = imload('assets/tire.bmp')
+
+WORLD_IMAGES = []
+names = [-1, 1, 2, 3]
+for name in names:
+    WORLD_IMAGES.append(imload('assets/' + str(name) + '.bmp'))
+DELTA_INDEX = 1
+INDESTR_DELTA = 1
 
 PI = 3.1415926535
 
 font = pygame.font.Font(None, 24)
 
-WORLD_SIDE = 255
+WORLD_SIDE = 200
 SECTOR_SIDE = 20
 BLOCK_SIDE = 64
 
-blocks = [[1] * WORLD_SIDE for x in range(WORLD_SIDE)]
+blocks = [[2] * WORLD_SIDE for x in range(WORLD_SIDE)]
 creatures = [[[]] * (WORLD_SIDE // SECTOR_SIDE)
              for x in range(WORLD_SIDE // SECTOR_SIDE)]
 
 for i in range(1, WORLD_SIDE - 1):
     for j in range(1, WORLD_SIDE - 1):
-        blocks[i][j] = randint(-30, 0)
+        varis = list([-1] * 60 + [0, 1])
+        blocks[i][j] = varis[randint(0, len(varis) - 1)]
 
 lab = ['##########',
        '#        #',
        '#        #',
        '#         ',
-       '#        #',
-       '#        #',
-       '#        #',
+       '#         ',
+       '#         ',
+       '#         ',
        '#        #',
        '#        #',
        '##########']
@@ -65,19 +74,22 @@ lab = ['##########',
 for i in range(10):
     for j in range(10):
         if lab[j][i] == '#':
-            blocks[i][j] = 1
+            blocks[i][j] = 2
         else:
             blocks[i][j] = -1
 
 world = pygame.Surface([WORLD_SIDE * BLOCK_SIDE] * 2)
 world.fill([255, 200, 50])
+
+def update_at(pos):
+    global world
+    i, j = pos
+    im = WORLD_IMAGES[blocks[i][j] + DELTA_INDEX]
+    world.blit(im, [i * BLOCK_SIDE, j * BLOCK_SIDE])
+
 for i in range(WORLD_SIDE):
     for j in range(WORLD_SIDE):
-        if blocks[i][j] >= 0:
-            im = WALL
-        else:
-            im = SPACE
-        world.blit(im, [i * BLOCK_SIDE, j * BLOCK_SIDE])
+        update_at([i, j])
 
 shots = []
 tires = []
@@ -236,6 +248,12 @@ class creature:
                     shift = [shift[i] + hit.insec[i] for i in range(2)]
             self.pos = [self.pos[i] + shift[i] for i in range(2)]
         return dist(ps, self.pos)
+    def shoot(self, pos):
+        shots.append(shot(self.pos, pos))
+        b_pos = [int(pos[x] / BLOCK_SIDE) for x in range(2)]
+        if len(WORLD_IMAGES) - DELTA_INDEX - INDESTR_DELTA > blocks[b_pos[0]][b_pos[1]] >= 0:
+            blocks[b_pos[0]][b_pos[1]] = -1
+            update_at(b_pos)
 
 def decrese(x, delt):
     X = abs(x)
@@ -287,11 +305,13 @@ class vehicle(creature):
         base.blit(BODY, [0, 0])
         blit_centred(scr, pygame.transform.rotate(base, degrees(-self.dirrect - PI / 2)), [self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
 
-SZX = 1000
-SZY = 700
+info = pygame.display.Info()
+
+SZX = info.current_w
+SZY = info.current_h
 SZS = [SZX, SZY]
 
-scr = pygame.display.set_mode([SZX, SZY])
+scr = pygame.display.set_mode([SZX, SZY], pygame.FULLSCREEN)
 
 player = creature([100, 100], 20)
 m_target = [0, 0]
@@ -315,8 +335,10 @@ while kg:
             kg = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
-                shots.append(shot(player.pos, am))
+                player.shoot(am)
         if event.type == pygame.KEYDOWN:
+            if event.key in [pygame.K_ESCAPE]:
+                kg = False
             if event.key in [pygame.K_w]:
                 m_target[1] -= 1
             if event.key in [pygame.K_s]:
