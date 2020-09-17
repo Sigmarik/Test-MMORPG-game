@@ -1,0 +1,2 @@
+for i in range(randint(50, 100)):
+    self.shoot([int(x) + randint(-150, 150) for x in self.pos], [150, 150, 150])
