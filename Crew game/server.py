@@ -29,6 +29,11 @@ def rotate(vec, rot):
     Y = sin(an) * D
     return [X, Y]
 
+def find_rotation_to(posA, posB):
+    delta = [posB[x] - posA[x] for x in range(2)]
+    ang = atan2(*delta)
+    return degrees(ang)
+
 WHEEL = imload('assets/wheel.bmp')
 BODY = imload('assets/body.bmp')
 SIGHT = imload('assets/sight.bmp')
@@ -36,6 +41,7 @@ WALL = imload('assets/1.bmp')
 RESOURCE = imload('assets/2.bmp')
 SPACE = pygame.image.load('assets/-1.bmp')
 TIRE = imload('assets/tire.bmp')
+BLOOD = imload('assets/bul_shot.bmp')
 
 WORLD_IMAGES = []
 names = [-1, 1, 2, 3]
@@ -135,7 +141,9 @@ class tire:
     rot = 0
     s_time = 0
     life_time = 1
-    def __init__(self, pos, rot, lt = 1):
+    img = ''
+    def __init__(self, pos, rot, lt = 3, img = TIRE):
+        self.img = img
         self.pos = pos.copy()
         self.rot = rot
         self.life_time = lt
@@ -146,7 +154,7 @@ class tire:
             tires.remove(self)
         else:
             transp = int(255 - ((tm - self.s_time) / self.life_time) * 255)
-            tr = TIRE.copy()
+            tr = self.img.copy()
             tr.set_alpha(transp)
             blit_centred(scr, pygame.transform.rotate(tr, self.rot), [self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
             #print([self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
@@ -254,12 +262,17 @@ class creature:
                     shift = [shift[i] + hit.insec[i] for i in range(2)]
             self.pos = [self.pos[i] + shift[i] for i in range(2)]
         return dist(ps, self.pos)
-    def shoot(self, pos, color = None):
+    def shoot(self, pos, color = None, start_pos = None):
+        global tires
+
+        if start_pos == None:
+            start_pos = self.pos
         if color == None:
-            shots.append(shot(self.pos, pos))
+            shots.append(shot(start_pos, pos))
         else:
-            shots.append(shot(self.pos, pos, color))
+            shots.append(shot(start_pos, pos, color))
         b_pos = [int(pos[x] / BLOCK_SIDE) for x in range(2)]
+        tires.append(tire(pos, 0, img=BLOOD))
         if len(WORLD_IMAGES) - DELTA_INDEX - INDESTR_DELTA > blocks[b_pos[0]][b_pos[1]] >= 0:
             blocks[b_pos[0]][b_pos[1]] = -1
             update_at(b_pos)
@@ -276,6 +289,7 @@ class enemy(creature):
     death_code = ''
     anim_ticks = []
     delta_frame = 0.25
+    last_shot = 0
     def __init__(self, dirname, pos):
         self.pos = pos.copy()
         folder = 'assets/' + dirname
@@ -285,10 +299,12 @@ class enemy(creature):
         self.atack_code = atack_f.read()
         death_f = open(folder + '/' + 'death.txt')
         self.death_code = death_f.read()
+        self.anim_ticks = []
+        self.last_shot = time.monotonic()
         for name in os.listdir(folder):
-            print(name)
+            #print(name)
             if '.bmp' in name:
-                print('newframe')
+                #print('newframe')
                 self.anim_ticks.append(imload(folder + '/' + name))
     def dye(self):
         exec(self.death_code)
@@ -301,13 +317,14 @@ class enemy(creature):
         delta_pos = [dirrection[x] * dt * self.speed for x in range(2)]
         result = self.move(delta_pos)
         delta_target = dist(self.pos, player.pos)
-        if delta_target < self.atack_dist:
+        if delta_target < self.atack_dist and time.monotonic() - self.last_shot >= self.reload:
             self.atack()
+            self.last_shot = time.monotonic()
         if result < dist(delta_pos) * 0.5:
             self.atack()
     def draw(self, scr):
         if dist(self.pos, player.pos) < 2000:
-            blit_centred(scr, self.anim_ticks[int(time.monotonic() / self.delta_frame) % len(self.anim_ticks)], [self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
+            blit_centred(scr, pygame.transform.rotate(self.anim_ticks[int(time.monotonic() / self.delta_frame) % len(self.anim_ticks)], find_rotation_to(self.pos, player.pos) - 90), [self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
 
 def decrese(x, delt):
     X = abs(x)
@@ -377,77 +394,86 @@ kg = True
 
 tm = time.monotonic()
 pygame.mouse.set_visible(False)
+tick = 0
 while kg:
-    TM = time.monotonic()
-    delta_time = TM - tm
-    tm = TM
-    scr.fill([255, 200, 50])
-    mpos = list(pygame.mouse.get_pos())
-    am = aim_to(player.pos, [mpos[x] + player.pos[x] - SZS[x] // 2 for x in range(2)])
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            kg = False
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                am_r = aim_to(player.pos, [mpos[x] + player.pos[x] - SZS[x] // 2 for x in range(2)], True)
-                player.shoot(am_r)
-        if event.type == pygame.KEYDOWN:
-            if event.key in [pygame.K_ESCAPE]:
+    try:
+        tick += 1
+        TM = time.monotonic()
+        delta_time = TM - tm
+        tm = TM
+        scr.fill([255, 200, 50])
+        mpos = list(pygame.mouse.get_pos())
+        am = aim_to(player.pos, [mpos[x] + player.pos[x] - SZS[x] // 2 for x in range(2)])
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 kg = False
-            if event.key in [pygame.K_w]:
-                m_target[1] -= 1
-            if event.key in [pygame.K_s]:
-                m_target[1] += 1
-            if event.key in [pygame.K_a]:
-                m_target[0] -= 1
-            if event.key in [pygame.K_d]:
-                m_target[0] += 1
-            if event.key in [pygame.K_e]:
-                if p_veh == None:
-                    if dist(player.pos, veh.pos) < 100:
-                        p_veh = veh
-                else:
-                    p_veh = None
-            if event.key == pygame.K_q:
-                enemyes.append(enemy('expl_bot', [player.pos[x] + 300 for x in range(2)]))
-        if event.type == pygame.KEYUP:
-            if event.key in [pygame.K_w]:
-                m_target[1] -= -1
-            if event.key in [pygame.K_s]:
-                m_target[1] += -1
-            if event.key in [pygame.K_a]:
-                m_target[0] -= -1
-            if event.key in [pygame.K_d]:
-                m_target[0] += -1
-    left, top = [int((player.pos[x] // BLOCK_SIDE) - (SZS[x] // BLOCK_SIDE) - 1) for x in range(2)]
-    right, down = [int((player.pos[x] // BLOCK_SIDE) + (SZS[x] // BLOCK_SIDE) + 1) for x in range(2)]
-    scr.blit(world, [0, 0], [player.pos[x] - SZS[x] // 2 for x in range(2)] + SZS)
-    for tr in tires:
-        tr.draw(scr, player)
-    for sht in shots:
-        sht.draw(scr, player)
-    if type(p_veh) == type(None):
-        if m_target != [0, 0]:
-            shft = m_target.copy()
-            D = dist(shft)
-            shft = [shft[i] * delta_time * 150 / D for i in range(2)]
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    delta_aim = dist(player.pos, [mpos[x] + player.pos[x] - SZS[x] // 2 for x in range(2)]) // 20
+                    am_r = aim_to(player.pos, [mpos[x] + player.pos[x] - SZS[x] // 2 + randint(-delta_aim, delta_aim) for x in range(2)], True)
+                    player.shoot(am_r)
+            if event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_ESCAPE]:
+                    kg = False
+                if event.key in [pygame.K_w]:
+                    m_target[1] -= 1
+                if event.key in [pygame.K_s]:
+                    m_target[1] += 1
+                if event.key in [pygame.K_a]:
+                    m_target[0] -= 1
+                if event.key in [pygame.K_d]:
+                    m_target[0] += 1
+                if event.key in [pygame.K_e]:
+                    if p_veh == None:
+                        if dist(player.pos, veh.pos) < 100:
+                            p_veh = veh
+                    else:
+                        p_veh = None
+                if event.key == pygame.K_q:
+                    enemyes.append(enemy('cannon_bot', [player.pos[x] + 300 for x in range(2)]))
+            if event.type == pygame.KEYUP:
+                if event.key in [pygame.K_w]:
+                    m_target[1] -= -1
+                if event.key in [pygame.K_s]:
+                    m_target[1] += -1
+                if event.key in [pygame.K_a]:
+                    m_target[0] -= -1
+                if event.key in [pygame.K_d]:
+                    m_target[0] += -1
+        left, top = [int((player.pos[x] // BLOCK_SIDE) - (SZS[x] // BLOCK_SIDE) - 1) for x in range(2)]
+        right, down = [int((player.pos[x] // BLOCK_SIDE) + (SZS[x] // BLOCK_SIDE) + 1) for x in range(2)]
+        scr.blit(world, [0, 0], [player.pos[x] - SZS[x] // 2 for x in range(2)] + SZS)
+        for tr in tires:
+            tr.draw(scr, player)
+        for sht in shots:
+            sht.draw(scr, player)
+        if type(p_veh) == type(None):
+            if m_target != [0, 0]:
+                shft = m_target.copy()
+                D = dist(shft)
+                shft = [shft[i] * delta_time * 150 / D for i in range(2)]
+            else:
+                shft = [0, 0]
+            player.move(shft)
+            veh.update([0, 0])
+            veh.draw(scr, player)
         else:
-            shft = [0, 0]
-        player.move(shft)
-        veh.update([0, 0])
-        veh.draw(scr, player)
-    else:
-        player.pos = p_veh.pos
-        p_veh.update(m_target)
-        p_veh.draw(scr, player)
-    pygame.draw.circle(scr, [0, 0, 255], [SZX // 2, SZY // 2], player.hit_size - 10)
-    if delta_time > 0 and 30 > 1 / delta_time:
-        scr.blit(font.render(str(int(1 / delta_time)), 1, [10, 10, 10, 0]), [10, 10])
-    for enem in enemyes:
-        enem.update(delta_time)
-        enem.draw(scr)
-    blit_centred(scr, SIGHT, mpos)
-    pygame.display.update()
+            player.pos = p_veh.pos
+            p_veh.update(m_target)
+            p_veh.draw(scr, player)
+        pygame.draw.circle(scr, [0, 0, 255], [SZX // 2, SZY // 2], player.hit_size - 10)
+        if delta_time > 0 and 30 > 1 / delta_time:
+            scr.blit(font.render(str(int(1 / delta_time)), 1, [10, 10, 10, 0]), [10, 10])
+        for enem in enemyes:
+            enem.update(delta_time)
+            enem.draw(scr)
+        if randint(0, 200) == 0:
+            dv = rotate([1000, 0], randint(0, 100000) / 100)
+            enemyes.append(enemy('expl_bot', [player.pos[x] + dv[x] for x in range(2)]))
+        blit_centred(scr, SIGHT, mpos)
+        pygame.display.update()
+    except:
+        _=0
 pygame.quit()
 
 

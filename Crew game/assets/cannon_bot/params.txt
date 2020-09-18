@@ -1,0 +1,4 @@
+self.atack_dist = 700
+self.speed = 70
+self.pathfinding_mode = linear
+self.reload = 1
