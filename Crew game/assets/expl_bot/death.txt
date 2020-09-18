@@ -1,4 +1,7 @@
+holes = []
 for i in range(randint(50, 100)):
     am = [int(x) + randint(-150, 150) for x in self.pos]
     targ = aim_to(self.pos, am)
-    self.shoot(targ, [150, 150, 150])
+    self.shoot(targ, [150, 150, 150], draw_holes=False, strength=1)
+    holes.append(targ)
+explode(holes, [300, 300], centre=self.pos)

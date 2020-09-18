@@ -42,6 +42,9 @@ RESOURCE = imload('assets/2.bmp')
 SPACE = pygame.image.load('assets/-1.bmp')
 TIRE = imload('assets/tire.bmp')
 BLOOD = imload('assets/bul_shot.bmp')
+FIRE = imload('assets/fire.bmp')
+
+up_effects = []
 
 WORLD_IMAGES = []
 names = [-1, 1, 2, 3]
@@ -142,22 +145,28 @@ class tire:
     s_time = 0
     life_time = 1
     img = ''
-    def __init__(self, pos, rot, lt = 3, img = TIRE):
+    delta_m = [0, 0]
+    def __init__(self, pos, rot, lt = 3, img = TIRE, delta_m = [0, 0]):
         self.img = img
         self.pos = pos.copy()
         self.rot = rot
         self.life_time = lt
         self.s_time = time.monotonic()
+        self.delta_m = delta_m.copy()
     def draw(self, scr, player):
+        global delta_time
         tm = time.monotonic()
+        self.pos = [self.pos[x] + self.delta_m[x] * delta_time for x in range(2)]
         if tm > self.s_time + self.life_time:
-            tires.remove(self)
+            try:
+                tires.remove(self)
+            except ValueError:
+                up_effects.remove(self)
         else:
             transp = int(255 - ((tm - self.s_time) / self.life_time) * 255)
             tr = self.img.copy()
             tr.set_alpha(transp)
             blit_centred(scr, pygame.transform.rotate(tr, self.rot), [self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
-            #print([self.pos[x] - player.pos[x] + SZS[x] // 2 for x in range(2)])
         return self
 
 def is_insec(a, b, c, d):
@@ -183,6 +192,22 @@ class hit_result:
         self.pos = pos.copy()
         self.is_border = bord
         self.insec = insec.copy()
+
+def explode(holes_positions, size_s, centre=[0, 0]):
+    size = [size_s[x] + 64 for x in range(2)]
+    ground_level = pygame.Surface(size)
+    ground_level.fill([255, 255, 255])
+    ground_level.set_colorkey([255, 255, 255])
+    for h_pos in holes_positions:
+        blit_centred(ground_level, BLOOD, [h_pos[x] - centre[x] + size[x] // 2 for x in range(2)])
+    tires.append(tire(centre, 0, img=ground_level))
+    fires = pygame.Surface(size)
+    fires.fill([255, 255, 255])
+    fires.set_colorkey([255, 255, 255])
+    for i in range(50):
+        r_delta = rotate([randint(0, min(size) // 2), 0], randint(0, 1000000) / 100)
+        blit_centred(fires, pygame.transform.scale(FIRE, [randint(16, 64)] * 2), [size[x] // 2 + r_delta[x] for x in range(2)])
+    up_effects.append(tire(centre, 0, img=fires, delta_m=[0, -100], lt=1))
 
 def aim_to(start, pos, is_deadly = False):
     delt = [pos[i] - start[i] for i in range(2)]
@@ -262,17 +287,18 @@ class creature:
                     shift = [shift[i] + hit.insec[i] for i in range(2)]
             self.pos = [self.pos[i] + shift[i] for i in range(2)]
         return dist(ps, self.pos)
-    def shoot(self, pos, color = None, start_pos = None):
+    def shoot(self, pos, color = None, start_pos = None, strength = 2, draw_holes = True):
         global tires
 
         if start_pos == None:
             start_pos = self.pos
         if color == None:
-            shots.append(shot(start_pos, pos))
+            shots.append(shot(start_pos, pos, power=strength))
         else:
-            shots.append(shot(start_pos, pos, color))
+            shots.append(shot(start_pos, pos, color, power=strength))
         b_pos = [int(pos[x] / BLOCK_SIDE) for x in range(2)]
-        tires.append(tire(pos, 0, img=BLOOD))
+        if draw_holes:
+            tires.append(tire(pos, 0, img=BLOOD))
         if len(WORLD_IMAGES) - DELTA_INDEX - INDESTR_DELTA > blocks[b_pos[0]][b_pos[1]] >= 0:
             blocks[b_pos[0]][b_pos[1]] = -1
             update_at(b_pos)
@@ -467,13 +493,15 @@ while kg:
         for enem in enemyes:
             enem.update(delta_time)
             enem.draw(scr)
-        if randint(0, 200) == 0:
+        if randint(0, 5) == 0 and time.monotonic() - int(time.monotonic()) <= 0.00001:
             dv = rotate([1000, 0], randint(0, 100000) / 100)
             enemyes.append(enemy('expl_bot', [player.pos[x] + dv[x] for x in range(2)]))
+        for tr in up_effects:
+            tr.draw(scr, player)
         blit_centred(scr, SIGHT, mpos)
         pygame.display.update()
-    except:
-        _=0
+    except ZeroDivisionError as E:
+        print(E)
 pygame.quit()
 
 

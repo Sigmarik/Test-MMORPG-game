@@ -1,4 +1,4 @@
 a_aim = aim_to(self.pos, player.pos)
-self.shoot(a_aim, color=[100, 200, 100])
+self.shoot(a_aim, color=[100, 200, 100], strength=10)
 for i in range(randint(5, 15)):
-    self.shoot([a_aim[0] + randint(-50, 50), a_aim[1] + randint(-50, 50)], color=[50, 50, 50], start_pos=a_aim)
+    self.shoot([a_aim[0] + randint(-50, 50), a_aim[1] + randint(-50, 50)], color=[50, 50, 50], start_pos=a_aim, strength=1)
